@@ -1,0 +1,53 @@
+---
+title : Stage-structured populations using IDE
+author : Payton Lyons, Andrii Zaiats, Maisha Maliha, Trevor Caughlin
+date: Fall 2021
+options:
+      md2pdf:
+        out_path : pdf
+---
+```julia; echo=false
+using Plots, FFTW
+```
+
+#### Integro - Difference Equations for structured populations  
+
+Assuming a single patch population. Divide population into two 
+stages according to movement ability: established plants and seed stages.
+
+```math
+\begin{align}
+	N_{t+1} &= N_t r \bigg(1 - \frac{N_t}{K} \bigg) + \sigma S_t  \\
+	S_{t+1} &= \alpha N_t
+\end{align}
+```
+where _r_ is intrinsic population growth, _K_ - carrying capacity, $\alpha$ - the 
+rate of seed production, and $\sigma$ the seed mortality.  
+
+this assumes that the seeds either die or germinate by next year. 
+Instead we can account for some seed staying in the seed bank for more than  years  
+
+```math
+\begin{align}
+	N_{t+1} &= N_t+ N_t r \bigg(1 - \frac{N_t}{K} \bigg) + \sigma \gamma S_t  \\
+	S_{t+1} &= \sigma (1-\gamma) \alpha N_t
+\end{align}
+```
+where $\gamma$ is the proportion of seeds that germinate.  
+
+Using the dispersal kernel:  
+```math
+\begin{align}
+	K(x,y) = \frac{1}{(4\pi D)} \cdot e^{\bigg(-\frac{x^2 + y^2}{4D} \bigg)} \\
+\end{align}
+```
+
+where x and y indicate the location on a spatial grid.  
+
+Applying the dispersal kernel to the seed stage only we get:  
+```math
+\begin{align}
+	S_{x,y,t+1} = \iint \big[ K(x-x^*,y-y^*) \cdot \alpha N_{x^*,y^*, t} \big]dx^* dy^*
+\end{align}
+```
+
