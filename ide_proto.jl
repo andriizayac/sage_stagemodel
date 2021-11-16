@@ -53,4 +53,15 @@ for j = 1:ngensf
 	pmat[:,:,j+1] = ptf
 end
 
-plot(hmat[:,:,10], st = :surface)
+l = @layout[a; b]
+p1 = plot(hmat[:,:,1], st = :surface, 
+xlabel = "x", ylabel = "y", 
+zlabel = "Population size, H_t", 
+title = "t = 0")
+
+p2 = plot(hmat[:,:,20], st = :surface, 
+xlabel = "x", ylabel = "y", 
+zlabel = "Population size, H_t", 
+title = "t = 10")
+
+plot(p1, p2, layout = l)
