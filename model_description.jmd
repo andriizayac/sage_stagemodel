@@ -10,44 +10,147 @@ options:
 using Plots, FFTW
 ```
 
-#### Integro - Difference Equations for structured populations  
+1. Integro-Difference Equations for structured populations.  
 
-Assuming a single patch population. Divide population into two 
-stages according to movement ability: established plants and seed stages.
+Modeling populations of long-living, perennial plants requires approaches that 
+differentiate plants in a population according their size or age at any given time 
+(Caswell 2000). A simplified approach to describing plant size structure is a framework 
+where we can break down the entire population into two stages: mature and juvenile individuals. 
+The fundamental difference between these two stages is that mature plants are  
+sessile and reproduce by creating new recruits in a population, while juvenile individuals 
+do not reproduce, and their discritbution depends on the location and abundance of mature 
+plants. Mathematically, this structure could be described by the following piece-wise function:
+
+```math
+H_{t+1} = 
+		\begin{cases}
+			H_t & \quad \text{if} \, t > \tau \\
+			S_t & \quad \text{if} \,  0 \geq t < \tau 
+		\end{cases}
+```
+where $H_{t+1}$ is the population at the next time step, $H_t$ and $S_t$ describe the 
+mature and juvenile individuals in the population respectively. This is modeled as a 
+piecewise function to accurately meet the 
+condition about how the plants grow differently at different time periods in it’s 
+lifespan. Becuase the amount of seeds plants produce per year is 
+proportional to the state and amount of mature indiviudlas, the number of juvenile plants 
+produced in a population is a function of mature individuals too. We can assume each adult 
+produces $\sigma$ 
+seeds each time step and all plants are located in a single patch:
+
+```math
+H_{t+1} =
+	\begin{cases}
+		H_{t} = f(H_t, S_t) &= H_t r \bigg(1 - \frac{H_t}{K} \bigg) + \gamma S_t  \\
+		S_{t} = g(H_t) &= \sigma H_t
+	\end{cases}
+```
+where _r_ is intrinsic growth rate of mature plants, _K_ - carrying capacity, $\sigma$ - the 
+rate of seed production, and $\gamma$ the seed mortality. 
+This assumes that the seeds either die or germinate by next year and do not stay in the seed bank. 
+Instead, we can account for some seed staying in the seed bank for more than one year by:  
 
 ```math
 \begin{align}
-	N_{t+1} &= N_t r \bigg(1 - \frac{N_t}{K} \bigg) + \sigma S_t  \\
-	S_{t+1} &= \alpha N_t
+		f(H_t, S_t) &= H_t r \bigg(1 - \frac{H_t}{K} \bigg) + \sigma \gamma S_t  \\
+		g({H_t}) &= \sigma (1-\gamma) \alpha H_t
 \end{align}
 ```
-where _r_ is intrinsic population growth, _K_ - carrying capacity, $\alpha$ - the 
-rate of seed production, and $\sigma$ the seed mortality.  
+where $\gamma$ is the proportion of seeds that germinate each year.  
 
-this assumes that the seeds either die or germinate by next year. 
-Instead we can account for some seed staying in the seed bank for more than  years  
-
+We can futher modify our system by adding a spatially explicit term that describes 
+the distribution of juvenile plants, $S_t$ as a function of proximity to mature 
+plants, $H_t$, using the dispersal kernel:  
 ```math
 \begin{align}
-	N_{t+1} &= N_t+ N_t r \bigg(1 - \frac{N_t}{K} \bigg) + \sigma \gamma S_t  \\
-	S_{t+1} &= \sigma (1-\gamma) \alpha N_t
+	K(x,y) = \frac{1}{(4\pi D)} \cdot \exp{\bigg(-\frac{x^2 + y^2}{4D} \bigg)} \\
 \end{align}
 ```
-where $\gamma$ is the proportion of seeds that germinate.  
 
-Using the dispersal kernel:  
+where $x$ and $y$ indicate the location of plants on a spatial grid.  
+
+Applying the dispersal kernel to the juvenile stage only we get the number of juvenile 
+plants in any given location $x, y$ that accounts for the dispersal of plants from the 
+neighboring patches.   
 ```math
 \begin{align}
-	K(x,y) = \frac{1}{(4\pi D)} \cdot e^{\bigg(-\frac{x^2 + y^2}{4D} \bigg)} \\
+	S_{x,y,t+1} = \iint \big[ K(x-x^*,y-y^*) \cdot \sigma H_{x^*,y^*, t} \big]dx^* dy^*
 \end{align}
 ```
+where $x^*, y^*$ indicate the neighboring locations to $x, y$.
 
-where x and y indicate the location on a spatial grid.  
+Putting it all together and simulating population trajectories over time using 
+the update rules described by Eq. 1 and 2, we observe the growth of mature individuals and
+dispersal over time. Here, the initial conditions $H_0$, represent a scenario where 
+plants are planted as a single, narrow strip through the spatial domain.
 
-Applying the dispersal kernel to the seed stage only we get:  
-```math
-\begin{align}
-	S_{x,y,t+1} = \iint \big[ K(x-x^*,y-y^*) \cdot \alpha N_{x^*,y^*, t} \big]dx^* dy^*
-\end{align}
+```julia; echo = false; results = false
+# === load packages
+using Plots, FFTW
+
+# === helper function
+inflate(f, xs, ys) = [f(x,y) for x in xs, y in ys]
+
+# === IDE code
+npf = 64; mup = .02; muh = .02; dt = .5; xlf = 10; dxf = 2*xlf/npf; 
+xf = [range(-xlf, xlf-dxf, length = npf);]
+yf = [range(-xlf, xlf-dxf, length = npf);]
+	
+ngensf = 50
+	
+D = 1
+	
+XF = xf' .* ones(npf)
+YF = ones(npf)' .* yf
+	
+nf = ones(npf)
+alphaf = .01ones(npf)
+rf = 0.175ones(npf)
+kf = 20ones(npf)
+	
+hmat = zeros(npf, npf, ngensf + 1)
+pmat = zeros(npf, npf, ngensf + 1)
+	
+# set up initial conditions
+p0f = (abs.(XF) .<= 1)
+h0f = (abs.(XF) .<= 1) #+ rand(npf, npf)
+	
+# define movement kernel
+K2D(x,y) = 1/(4pi*D) * exp(-(x^2 + y^2) / (4D))
+pker = inflate(K2D, xf, yf)
+	
+Fpker = fft(pker)
+	
+hmat[:,:,1] = h0f
+pmat[:,:,1] = p0f
+	
+htf = h0f
+ptf = p0f
+for j = 1:ngensf
+	global htf, ptf
+	hn = htf .+ htf .* rf .* (1 .- htf ./ kf) .+ alphaf .* ptf
+	pn = nf .* hn
+		
+	fpn = fft(pn)
+	
+	htf = hn
+	ptf = real( fftshift( ifft(Fpker .* fpn) ) )
+
+	hmat[:,:,j+1] = htf
+	pmat[:,:,j+1] = ptf
+end
 ```
+```julia; echo=false;
+l = @layout[a; b]
+p1 = plot(hmat[:,:,1], st = :surface, 
+xlabel = "x", ylabel = "y", 
+zlabel = "Population size, H_t", 
+title = "t = 0")
 
+p2 = plot(hmat[:,:,20], st = :surface, 
+xlabel = "x", ylabel = "y", 
+zlabel = "Population size, H_t", 
+title = "t = 20")
+
+plot(p1, p2, layout = l)
+```
