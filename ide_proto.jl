@@ -29,7 +29,15 @@ p0f = (abs.(XF) .<= 1)
 h0f = (abs.(XF) .<= 1) #+ rand(npf, npf)
 	
 # define movement kernel
-K2D(x,y) = 1/(4pi*D) * exp(-(x^2 + y^2) / (4D))
+# Laplace kernel
+K2DL(x, y) = 1/sqrt(2*D^2)*exp(-sqrt(2/D^2)*abs(x - y))
+# Gaussian kernel
+K2DG(x, y) = 1/sqrt(2pi*D^2)*exp(-(x - y)^2/(2D^2))
+
+# Powell kernel (tutorial)
+K2DP(x, y) = 1/(4pi*D) * exp(-(x^2 + y^2) / (4D))
+# define the kernel
+K2D(x,y) =  K2DP(x,y)
 pker = inflate(K2D, xf, yf)
 	
 Fpker = fft(pker)
@@ -59,9 +67,10 @@ xlabel = "x", ylabel = "y",
 zlabel = "Population size, H_t", 
 title = "t = 0")
 
-p2 = plot(hmat[:,:,20], st = :surface, 
+tt = 10
+p2 = plot(hmat[:,:,tt], st = :surface, 
 xlabel = "x", ylabel = "y", 
 zlabel = "Population size, H_t", 
-title = "t = 10")
+title = tt)
 
 plot(p1, p2, layout = l)

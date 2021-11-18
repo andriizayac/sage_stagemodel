@@ -1,6 +1,6 @@
 ---
 title : Stage-structured populations using IDE
-author : Payton Lyons, Andrii Zaiats, Maisha Maliha, Trevor Caughlin
+author : Payton Lyons, Andrii Zaiats, Maisha Maliha, Rongsong Liu, Trevor Caughlin
 date: Fall 2021
 options:
       md2pdf:
@@ -9,8 +9,30 @@ options:
 ```julia; echo=false
 using Plots, FFTW
 ```
+1. Background.  
 
-1. Integro-Difference Equations for structured populations.  
+Ecosystem degradation of in the Intermountain Western US has been 
+an increasing trend over the last century. Intensifying wildfires, 
+biological invasions, and land use are among the major agents driving 
+the degradation of local ecosystems, plant and animal populations. Land 
+managers and stakeholds across the Western US rely on management techniques 
+that can help in the recovery of natrual ecosystem states, but the spatial 
+extent of the disturbance exceeds the resources that are at the disposal of 
+land managers. Mathematical models that mechanistically describe the 
+dynamics of plant populations can be a powerful tool to guide management 
+interventions by predicting population dynamics, including natural rates of 
+recovery, seed dispersal from remnant populations, demographic bottlenecks 
+in recovery, natural and alternative stable states. Analytical insights, 
+combined with numerical simulations of such mechanistic models can also help 
+in generating management hypotheses and intervention scenrarios that can 
+further improve effective managemnet of the disturbed areas.  
+
+2. Objectives.
+* Construct a mathematical stage-structured population model of big sagebrush.  
+* Quantify the efficacy of common intervention strategies on rates of population recovery, including aerial seeding, planting design and density.
+* Derive the existence of positive stable states in heterogenous environments indicative of population resilience to disturbance agents. 
+
+3. Integro-Difference Equations for structured populations.  
 
 Modeling populations of long-living, perennial plants requires approaches that 
 differentiate plants in a population according their size or age at any given time 
@@ -22,11 +44,13 @@ do not reproduce, and their discritbution depends on the location and abundance 
 plants. Mathematically, this structure could be described by the following piece-wise function:
 
 ```math
+\begin{align}
 H_{t+1} = 
 		\begin{cases}
 			H_t & \quad \text{if} \, t > \tau \\
 			S_t & \quad \text{if} \,  0 \geq t < \tau 
 		\end{cases}
+\end{align}
 ```
 where $H_{t+1}$ is the population at the next time step, $H_t$ and $S_t$ describe the 
 mature and juvenile individuals in the population respectively. This is modeled as a 
@@ -35,15 +59,18 @@ condition about how the plants grow differently at different time periods in itâ
 lifespan. Becuase the amount of seeds plants produce per year is 
 proportional to the state and amount of mature indiviudlas, the number of juvenile plants 
 produced in a population is a function of mature individuals too. We can assume each adult 
-produces $\sigma$ 
-seeds each time step and all plants are located in a single patch:
+produces $\sigma$ seeds each time step and all plants are located in a single patch. The 
+stage-structured model then can be described recursively, assuming the initial state 
+$H_{t=0} > 0$ :
 
 ```math
+\begin{align}
 H_{t+1} =
 	\begin{cases}
 		H_{t} = f(H_t, S_t) &= H_t r \bigg(1 - \frac{H_t}{K} \bigg) + \gamma S_t  \\
 		S_{t} = g(H_t) &= \sigma H_t
 	\end{cases}
+\end{align}
 ```
 where _r_ is intrinsic growth rate of mature plants, _K_ - carrying capacity, $\sigma$ - the 
 rate of seed production, and $\gamma$ the seed mortality. 
@@ -53,7 +80,7 @@ Instead, we can account for some seed staying in the seed bank for more than one
 ```math
 \begin{align}
 		f(H_t, S_t) &= H_t r \bigg(1 - \frac{H_t}{K} \bigg) + \sigma \gamma S_t  \\
-		g({H_t}) &= \sigma (1-\gamma) \alpha H_t
+		g({H_t}) &= \sigma (1-\gamma) H_t
 \end{align}
 ```
 where $\gamma$ is the proportion of seeds that germinate each year.  
@@ -63,7 +90,7 @@ the distribution of juvenile plants, $S_t$ as a function of proximity to mature
 plants, $H_t$, using the dispersal kernel:  
 ```math
 \begin{align}
-	K(x,y) = \frac{1}{(4\pi D)} \cdot \exp{\bigg(-\frac{x^2 + y^2}{4D} \bigg)} \\
+	K(x,y) = \frac{1}{ \sqrt{2 \pi D}}  \exp{\bigg(-\frac{x^2 - y^2}{4D} \bigg)} \\
 \end{align}
 ```
 
@@ -74,7 +101,7 @@ plants in any given location $x, y$ that accounts for the dispersal of plants fr
 neighboring patches.   
 ```math
 \begin{align}
-	S_{x,y,t+1} = \iint \big[ K(x-x^*,y-y^*) \cdot \sigma H_{x^*,y^*, t} \big]dx^* dy^*
+	S_{x,y,t+1} = \iint \big[ K(x-x^*,y-y^*) \sigma H_{x^*,y^*, t} \big]dx^* dy^*
 \end{align}
 ```
 where $x^*, y^*$ indicate the neighboring locations to $x, y$.
