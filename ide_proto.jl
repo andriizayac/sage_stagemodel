@@ -28,16 +28,26 @@ pmat = zeros(npf, npf, ngensf + 1)
 p0f = (abs.(XF) .<= 1)
 h0f = (abs.(XF) .<= 1) #+ rand(npf, npf)
 	
-# define movement kernel
+# define/choose movement kernels
 # Laplace kernel
 K2DL(x, y) = 1/sqrt(2*D^2)*exp(-sqrt(2/D^2)*abs(x - y))
 # Gaussian kernel
 K2DG(x, y) = 1/sqrt(2pi*D^2)*exp(-(x - y)^2/(2D^2))
-
 # Powell kernel (tutorial)
 K2DP(x, y) = 1/(4pi*D) * exp(-(x^2 + y^2) / (4D))
 # define the kernel
 K2D(x,y) =  K2DP(x,y)
+
+# define/choose growth functions
+# Beverton-Holt - Contest
+bvholt(N, a, b) = a .* N ./ (1 .+ b .* N)
+# Ricker - Scramble
+ricker(N, a, b) = N .* exp.(a .* (1 .- N ./ b))
+# Logistic - Scramble
+logistic(N, a, b) = a .* N .* (1 .- N ./ b)
+
+growth(N, a, b) = bvholt(N, a, b)
+# === simulate 
 pker = inflate(K2D, xf, yf)
 	
 Fpker = fft(pker)
@@ -49,7 +59,8 @@ htf = h0f
 ptf = p0f
 for j = 1:ngensf
 	global htf, ptf
-	hn = htf .+ htf .* rf .* (1 .- htf ./ kf) .+ alphaf .* ptf
+	# hn = htf .+ htf .* rf .* (1 .- htf ./ kf) .+ alphaf .* ptf
+	hn = htf .+ growth(htf, .1,  20) .+ alphaf .* ptf
 	pn = nf .* hn
 		
 	fpn = fft(pn)
