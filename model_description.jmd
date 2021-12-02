@@ -11,10 +11,10 @@ using Plots, FFTW
 ```
 1. Background.  
 
-Ecosystem degradation of in the Intermountain Western US has been 
+Ecosystem degradation in the Intermountain Western US has been 
 an increasing trend over the last century. Intensifying wildfires, 
 biological invasions, and land use are among the major agents driving 
-the degradation of local ecosystems, plant and animal populations. Land 
+the degradation of local ecosystems, including plant and animal populations. Land 
 managers and stakeholds across the Western US rely on management techniques 
 that can help in the recovery of natrual ecosystem states, but the spatial 
 extent of the disturbance exceeds the resources that are at the disposal of 
@@ -38,10 +38,10 @@ further improve effective managemnet of the disturbed areas.
 Modeling populations of long-living, perennial plants requires approaches that 
 differentiate plants in a population according their size or age at any given time 
 (Caswell 2000). A simplified approach to describing plant size structure is a framework 
-where we can break down the entire population into two stages: mature and juvenile individuals. 
+where we can break down population life cycle into two stages: mature and juvenile individuals. 
 The fundamental difference between these two stages is that mature plants are  
-sessile and reproduce by creating new recruits in a population, while juvenile individuals 
-do not reproduce, and their discritbution depends on the location and abundance of mature 
+sessile and reproduce by creating new recruits in the vicinity of parent plants, while juvenile individuals 
+do not reproduce, and their discritbution and esteblishement depend on the location and abundance of mature 
 plants. Mathematically, this structure could be described by the following piece-wise function:
 
 ```math
@@ -62,40 +62,65 @@ proportional to the state and amount of mature indiviudlas, the number of juveni
 produced in a population is a function of mature individuals too. We can assume each adult 
 produces $\sigma$ seeds each time step and all plants are located in a single patch. The 
 stage-structured model then can be described recursively, assuming the initial state 
-$H_{t=0} > 0$ :
+$H_{t = 0} > 0$ :
 
 ```math
 \begin{align}
 H_{t+1} =
 	\begin{cases}
-		H_{t} = f(H_t, S_t) &= H_t r \bigg(1 - \frac{H_t}{K} \bigg) + \gamma S_t  \\
-		S_{t} = g(H_t) &= \sigma H_t
+		H_{t} = f(H_t, S_t)  \\
+		S_{t} = g(H_t) 
 	\end{cases}
 \end{align}
 ```
-where _r_ is intrinsic growth rate of mature plants, _K_ - carrying capacity, $\sigma$ - the 
-rate of seed production, and $\gamma$ the seed mortality. 
-This assumes that the seeds either die or germinate by next year and do not stay in the seed bank. 
-Instead, we can account for some seed staying in the seed bank for more than one year by:  
+where _f_ is a function modeling monotinic growth of mature, established, plants, and _g_ is the function 
+describing the influx of new individuals into the population _H_.
+The addition of new plants into the popoulation can follow an exponential relationship 
+when the population is under low density, but is expected to decline as population matures 
+following contest competition among individual plants. Under contest competition, 
+larger plants are expected to disproportionally obtain resources from the 
+environment compared to smaller plants, which leads recruitment function _g_ to 
+approach zero as population matures. Assuming the growth of established plants 
+follows a monotinic function, _e.g._ Beverton-Holt growth model, our system can be 
+described in the following way: 
+
+
 
 ```math
 \begin{align}
-		f(H_t, S_t) &= H_t r \bigg(1 - \frac{H_t}{K} \bigg) + \sigma \gamma S_t  \\
-		g({H_t}) &= \sigma (1-\gamma) H_t
+		f(H_t, S_t) &= H_t \frac{R}{1 + H_t/k} + \alpha \bigg(1 - \frac{H_t}{(r - 1)k} \bigg) S_t  \\
+		g({H_t}) &= \sigma H_t
 \end{align}
 ```
-where $\gamma$ is the proportion of seeds that germinate each year.  
+where the first term in _Eq. 3_ models the growth (increase in biomass) of established 
+individuals and the second terms describes density-dependent pattern of recruitment. 
+_Eq. 4_ describes the production of new seed that can either die or establish as new 
+individuals.
 
 We can futher modify our system by adding a spatially explicit term that describes 
-the distribution of juvenile plants, $S_t$ as a function of proximity to mature 
-plants, $H_t$, using the dispersal kernel:  
+the distribution of juvenile plants, $S_t$, around the mature 
+plants, $H_{t, x, y}$, using a dispersal kernel. A dispersal kernel probabilistically models 
+the spatial distribution of juvenile plants aroud each location _x, y_ where a mature plant is located.  
 ```math
 \begin{align}
-	K(x,y) = \frac{1}{ \sqrt{2 \pi D}}  \exp{\bigg(-\frac{x^2 - y^2}{4D} \bigg)} \\
+	K(x,y) = \frac{1}{ \sqrt{4 \pi D}}  \exp{\bigg(-\frac{x^2 - y^2}{4D} \bigg)} \\
 \end{align}
 ```
 
 where $x$ and $y$ indicate the location of plants on a spatial grid.  
+
+We can visualize a dispersal kernel in a single dimension, _x_, under a range 
+of dispersal parameter, _D_, that determines how far juvenile plants are likely to establish 
+from a parent plant located at _x = 0_.
+
+```julia; echo=false;
+D = [1, 2, 3]
+K1DP(x, D) = 1/(4pi*D) * exp(-(x^2) / (4D))
+x = [0:.1:10;] .- 5
+plot(x, K1DP.(x, D[1]), label = "D = 1")
+plot!(x, K1DP.(x,D[2]), label = "D = 2")
+plot!(x, K1DP.(x,D[3]), label = "D = 3")
+```
 
 Applying the dispersal kernel to the juvenile stage only we get the number of juvenile 
 plants in any given location $x, y$ that accounts for the dispersal of plants from the 
@@ -112,6 +137,26 @@ the update rules described by Eq. 1 and 2, we observe the growth of mature indiv
 dispersal over time. Here, the initial conditions $H_0$, represent a scenario where 
 plants are planted as a single, narrow strip through the spatial domain.
 
+
+```julia; echo=false; results=false;
+	# Beverton-Holt - Contest
+	# note: the meaning of a, b parameters in Beverton-Holt is different. In the standardized form (carrying capacity = 1), we do a + 1, b/10 to make them equivalent to the Ricker and logistic models
+	# bvholt(N, a, b) = (a .+ 1) .* N ./ (1 .+ (b ./ 10) .* N)
+	bvholt(N, a, k) = N .* (a .+ 1) ./ (1 .+ N ./ k);
+	# Ricker - Scramble
+	# ricker(N, a, b) = N .* exp.(a .* (1 .- N ./ b))
+	ricker(N, a, b) = N .* exp.(a .* (1 .- N ./ b));
+	# Logistic - Scramble
+	# logistic(N, a, b) = N + a .* N .* (1 .- N ./ b)
+	logistic(N, a, K) = N .+ a .* N .* (1 .- N ./ K);
+
+	# Laplace kernel
+	K2DL(x, y) = 1/sqrt(2*D^2)*exp(-sqrt(2/D^2)*abs(x - y));
+	# Gaussian kernel
+	K2DG(x, y) = 1/sqrt(2pi*D^2)*exp(-(x - y)^2/(2D^2));
+	# Powell kernel (tutorial)
+	K2DP(x, y) = 1/(4pi*D) * exp(-(x^2 + y^2) / (4D));
+```
 ```julia; echo = false; results = false
 # === load packages
 using Plots, FFTW
@@ -132,8 +177,8 @@ XF = xf' .* ones(npf)
 YF = ones(npf)' .* yf
 	
 nf = ones(npf)
-alphaf = .01ones(npf)
-rf = 0.175ones(npf)
+alphaf = .1ones(npf)
+rf = 0.1ones(npf)
 kf = 20ones(npf)
 	
 hmat = zeros(npf, npf, ngensf + 1)
@@ -143,8 +188,9 @@ pmat = zeros(npf, npf, ngensf + 1)
 p0f = (abs.(XF) .<= 1)
 h0f = (abs.(XF) .<= 1) #+ rand(npf, npf)
 	
-# define movement kernel
-K2D(x,y) = 1/(4pi*D) * exp(-(x^2 + y^2) / (4D))
+# define the grwth functio and movement kernel
+growth(N, a, b) = bvholt(N, a, b);
+K2D(x,y) = K2DP(x, y);
 pker = inflate(K2D, xf, yf)
 	
 Fpker = fft(pker)
@@ -154,31 +200,31 @@ pmat[:,:,1] = p0f
 	
 htf = h0f
 ptf = p0f
-for j = 1:ngensf
-	global htf, ptf
-	hn = htf .+ htf .* rf .* (1 .- htf ./ kf) .+ alphaf .* ptf
-	pn = nf .* hn
+	for j = 1:ngensf
+		global htf, ptf
+		hn = growth(htf, rf, kf) .+ alphaf .* (1 .- htf ./ kf) .* ptf
+		pn = nf .* hn
 		
-	fpn = fft(pn)
-	
-	htf = hn
-	ptf = real( fftshift( ifft(Fpker .* fpn) ) )
-
-	hmat[:,:,j+1] = htf
-	pmat[:,:,j+1] = ptf
-end
+		fpn = fft(pn)
+		
+		htf = hn
+		ptf = real( fftshift( ifft(Fpker .* fpn) ) )
+		
+		hmat[:,:,j+1] = htf
+		pmat[:,:,j+1] = ptf
+	end
 ```
-```julia; echo=false;
+```julia; echo=false; 
 l = @layout[a; b]
 p1 = plot(hmat[:,:,1], st = :surface, 
 xlabel = "x", ylabel = "y", 
 zlabel = "Population size, H_t", 
 title = "t = 0")
 
-p2 = plot(hmat[:,:,20], st = :surface, 
+p2 = plot(hmat[:,:,10], st = :surface, 
 xlabel = "x", ylabel = "y", 
 zlabel = "Population size, H_t", 
-title = "t = 20")
+title = "t = 10")
 
 plot(p1, p2, layout = l)
 ```
