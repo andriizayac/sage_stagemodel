@@ -5,28 +5,33 @@ using Plots, FFTW
 inflate(f, xs, ys) = [f(x,y) for x in xs, y in ys]
 
 # === IDE code
-npf = 64; mup = .02; muh = .02; dt = .5; xlf = 10; dxf = 2*xlf/npf; 
+npf = 128;  xlf = 10; dxf = 2*xlf/npf; 
+# define the spatial arrays in x and y
 xf = [range(-xlf, xlf-dxf, length = npf);]
 yf = [range(-xlf, xlf-dxf, length = npf);]
 	
-ngensf = 50
+# number of generation
+ngensf = 100
 	
-D = 1
+# diffusion coefficient
+D = .02
 	
+# combine spatial arrays into grid
 XF = xf' .* ones(npf)
 YF = ones(npf)' .* yf
 	
-nf = ones(npf)
-alphaf = .01ones(npf)
+sigma = ones(npf)
+alpha = .01ones(npf)
 rf = 0.175ones(npf)
 kf = 20ones(npf)
 	
+# store simulations
 hmat = zeros(npf, npf, ngensf + 1)
 pmat = zeros(npf, npf, ngensf + 1)
 	
 # set up initial conditions
-p0f = (abs.(XF) .<= 1)
-h0f = (abs.(XF) .<= 1) #+ rand(npf, npf)
+p0f = (abs.(XF) .>= 9) #.* (abs.(YF) .<= 1)
+h0f = (abs.(XF) .>= 9) #.* (abs.(YF) .>= 9) # #  # + rand(npf, npf)
 	
 # define/choose movement kernels
 # Laplace kernel
@@ -59,9 +64,8 @@ htf = h0f
 ptf = p0f
 for j = 1:ngensf
 	global htf, ptf
-	# hn = htf .+ htf .* rf .* (1 .- htf ./ kf) .+ alphaf .* ptf
-	hn = htf .+ growth(htf, .1,  20) .+ alphaf .* ptf
-	pn = nf .* hn
+	hn = htf .+ growth(htf, .1,  20) .+ alpha .*(1 .- htf/20) .* ptf
+	pn = sigma .* hn
 		
 	fpn = fft(pn)
 	
