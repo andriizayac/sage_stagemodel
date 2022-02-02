@@ -40,8 +40,3 @@ xlims!((0, 2))
 r = 2
 plot!(N, ricker.(N,r), label = "Ricker non-monotonic", axes=:none, linewidth = 3)
 xlims!((0, 2))
-
-
-# === Expornential growth function
-
-plot(exp, xlims = [0, 5], linewidth = 4, label = :none, xlabel = "H_t", ylabel = "S_t+1", color = :darkblue)

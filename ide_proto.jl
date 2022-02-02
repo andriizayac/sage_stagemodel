@@ -5,33 +5,33 @@ using Plots, FFTW
 inflate(f, xs, ys) = [f(x,y) for x in xs, y in ys]
 
 # === IDE code
-npf = 128;  xlf = 10; dxf = 2*xlf/npf; 
+n = 128;  x = 10; dx = 2*x/n; 
 # define the spatial arrays in x and y
-xf = [range(-xlf, xlf-dxf, length = npf);]
-yf = [range(-xlf, xlf-dxf, length = npf);]
+xf = [range(-x, x-dx, length = n);]
+yf = [range(-x, x-dx, length = n);]
 	
 # number of generation
-ngensf = 100
+ngen = 100
 	
 # diffusion coefficient
 D = .02
 	
 # combine spatial arrays into grid
-XF = xf' .* ones(npf)
-YF = ones(npf)' .* yf
+XF = xf' .* ones(n)
+YF = ones(n)' .* yf
 	
-sigma = ones(npf)
-alpha = .01ones(npf)
-rf = 0.175ones(npf)
-kf = 20ones(npf)
+sigma = ones(n)
+alpha = .01ones(n)
+rf = 0.175ones(n)
+kf = 20ones(n)
 	
 # store simulations
-hmat = zeros(npf, npf, ngensf + 1)
-pmat = zeros(npf, npf, ngensf + 1)
+hmat = zeros(n, n, ngen + 1)
+smat = zeros(n, n, ngen + 1)
 	
 # set up initial conditions
-p0f = (abs.(XF) .>= 9) #.* (abs.(YF) .<= 1)
-h0f = (abs.(XF) .>= 9) #.* (abs.(YF) .>= 9) # #  # + rand(npf, npf)
+h0 = (abs.(XF) .>= 9) #.* (abs.(YF) .<= 1)
+s0 = (abs.(XF) .>= 9) #.* (abs.(YF) .>= 9) # #  # + rand(npf, npf)
 	
 # define/choose movement kernels
 # Laplace kernel
@@ -53,27 +53,27 @@ logistic(N, a, b) = a .* N .* (1 .- N ./ b)
 
 growth(N, a, b) = bvholt(N, a, b)
 # === simulate 
-pker = inflate(K2D, xf, yf)
+sker = inflate(K2D, xf, yf)
 	
-Fpker = fft(pker)
+Fsker = fft(sker)
 	
-hmat[:,:,1] = h0f
-pmat[:,:,1] = p0f
+hmat[:,:,1] = h0
+smat[:,:,1] = s0
 	
-htf = h0f
-ptf = p0f
-for j = 1:ngensf
-	global htf, ptf
-	hn = htf .+ growth(htf, .1,  20) .+ alpha .*(1 .- htf/20) .* ptf
-	pn = sigma .* hn
+htf = h0
+stf = s0
+for j = 1:ngen
+	global htf, stf
+	hn = htf .+ growth(htf, .1,  20) .+ alpha .*(1 .- htf/20) .* stf
+	sn = sigma .* hn
 		
-	fpn = fft(pn)
+	fsn = fft(sn)
 	
 	htf = hn
-	ptf = real( fftshift( ifft(Fpker .* fpn) ) )
+	stf = real( fftshift( ifft(Fsker .* fsn) ) )
 
 	hmat[:,:,j+1] = htf
-	pmat[:,:,j+1] = ptf
+	smat[:,:,j+1] = stf
 end
 
 l = @layout[a; b]
