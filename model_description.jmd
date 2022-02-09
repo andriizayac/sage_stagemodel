@@ -113,7 +113,7 @@ We can visualize a dispersal kernel in a single dimension, _x_, under a range
 of dispersal parameter, _D_, that determines how far juvenile plants are likely to establish 
 from a parent plant located at _x = 0_.
 
-```julia; echo=false;
+```julia; echo=false; fig_width = 4; fig_height = 3
 D = [1, 2, 3]
 K1DP(x, D) = 1/(4pi*D) * exp(-(x^2) / (4D))
 x = [0:.1:10;] .- 5
@@ -214,7 +214,7 @@ ptf = p0f
 		pmat[:,:,j+1] = ptf
 	end
 ```
-```julia; echo=false; 
+```julia; echo=false; fig_width = 6; fig_height = 7
 l = @layout[a; b]
 p1 = plot(hmat[:,:,1], st = :surface, 
 xlabel = "x", ylabel = "y", 
