@@ -24,20 +24,19 @@ xy = getxy.(XF, YF)
 
 sigma = ones(n)
 alpha = .01ones(n)
-rf = 0.175ones(n)
-kf = 20ones(n)
-	
+
 # store simulations
 hmat = zeros(n, n, ngen + 1)
 smat = zeros(n, n, ngen + 1)
 	
 # set up initial conditions
-h0 = Matrix(spdiagm(1 => ones(n-1), 0 => ones(n), -1 => ones(n-1))) # (abs.(XF) .>= 9) #.* (abs.(YF) .<= 1)
+h0 = zeros(n, n) # (abs.(XF) .<= 1) #.* (abs.(YF) .<= 1) # Matrix(spdiagm(1 => ones(n-1), 0 => ones(n), -1 => ones(n-1))) # (abs.(XF) .>= 9) #.* (abs.(YF) .<= 1) # zeros(n, n)
+h0[32:34,32:34] .= 1; h0[96:98,96:98] .= 1;  
 s0 = zeros(n, n) # (abs.(XF) .>= 9) #.* (abs.(YF) .>= 9) # #  # + rand(npf, npf)
 	
 
 # === choose a dispersal kernel: K2DL (Laplace), K2DG (Gaussian)
-K2D(x, y) =  K2DP(x, y)
+K2D(x, y) =  K2DG(x, y)
 
 # === choose growth functions
 # Beverton-Holt - Contest [bvholt]
@@ -80,11 +79,11 @@ zlabel = "Population size, H_t",
 title = "t = 0", 
 camera=(20,80))
 
-tt = 8
+tt = 100
 p2 = plot(hmat[:,:,tt], st = :surface, 
 xlabel = "x", ylabel = "y", 
 zlabel = "Population size, H_t", 
 title = tt,  
-camera=(10,80))
+camera=(20,70))
 
 plot(p1, p2, layout = l)
