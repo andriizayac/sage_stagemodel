@@ -5,7 +5,7 @@ using CSV, DataFrames
 df = DataFrame(CSV.File("data/nlcd_sage_beryl_1988.csv"))
 
 # subset and covert to matrix
-dfn = Matrix{Float64}(df[1:30,:])
+dfn = Matrix{Int64}(df[1:30,:])
 # plot the trajectories
 plot(dfn', legend=:none)
 
@@ -19,18 +19,16 @@ bh(x,p) = x .* (p[1] ./ (1 .+ x ./ p[2]))
 # --- Point-estimate log-likelihood function
 function loglike(rho)
     beta = rho[1:2]
-    sigma2 = exp(rho[3])
-    residual = Y - bh(X,beta)
-    dist = Normal(0, sqrt(sigma2))
-    lp = logpdf.(dist, residual)
+    theta = exp.(bh(X, beta))
+    dist = Poisson.(theta)
+    lp = logpdf.(dist, Y)
     logl = sum(lp)
     return -logl
- end
+end
 
-p0 = [1, 200, .5] # initial parameter values
+p0 = [1.1, 200] # initial parameter values
 res = optimize(loglike, p0)
 est = res.minimizer
-est[3] = exp(est[3])
 # print estimated parameters
 println(est)
 
@@ -41,7 +39,7 @@ bht(t, p) = p[2]*p[3] ./ (p[3] .+ (p[2] - p[3]) * (p[1] .^-t) )
 n0 = 1.0
 t = [1.0:1:50;]
 # compute the carrying capacity
-K = (est[1] - 1)*est[2] 
+K = (est[1]s - 1) * est[2]
 # combine estimated parameters
 phat = [est[1], K, n0]
 # simulate and plot predicted cover
@@ -82,3 +80,31 @@ res = optimize(loglike, lower, upper, p0)
 est = res.minimizer
 est[4] = exp(est[4])
 # --- end
+
+
+# === Turing implementation
+using Turing
+n = length(Y)
+
+@model poisson_regression(X, Y, n) = begin
+    b0 ~ truncated(Normal(0, 1), 0, Inf)
+    b1 ~ truncated(Normal(0, 10), 0, Inf)
+
+    for i = 1:n
+        theta = X[i] * (b0 / (1 + X[i] / b1))
+        Y[i] ~ Poisson(exp(theta))
+    end
+end;
+
+# Sample using NUTS.
+
+num_chains = 4
+m = poisson_regression(Y, Y, n)
+chain = sample(m, NUTS(200, 0.65), MCMCThreads(), 500, num_chains; discard_adapt=false)
+
+# Taking the first chain
+c1 = chain[:,:,1]
+
+# Calculating the exponentiated means
+b0_exp = exp(mean(c1[:b0]))
+b1_exp = exp(mean(c1[:b1]))
