@@ -13,6 +13,9 @@ plot(dfn', legend=:none)
 Y = vec(dfn[:, 2:end])
 X = vec(dfn[:, 1:end-1])
 
+Y = Y[X .> 0]
+X = log.(X[X .> 0])
+
 # define a simple Beverton-Holt (or some other growth) function
 bh(x,p) = x .* (p[1] ./ (1 .+ x ./ p[2]))
 
@@ -39,11 +42,11 @@ bht(t, p) = p[2]*p[3] ./ (p[3] .+ (p[2] - p[3]) * (p[1] .^-t) )
 n0 = 1.0
 t = [1.0:1:50;]
 # compute the carrying capacity
-K = (est[1]s - 1) * est[2]
+K = (est[1] - 1) * est[2]
 # combine estimated parameters
 phat = [est[1], K, n0]
 # simulate and plot predicted cover
-yhat = bht(t, phat) #+ rand(Normal(0, est[3]), length(t))
+yhat = exp.(bht(t, phat)) #+ rand(Normal(0, est[3]), length(t))
 plot(dfn', legend=:none)
 plot!(t, yhat, linewidth=2, legend=:none)
 
