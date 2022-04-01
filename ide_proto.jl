@@ -95,8 +95,8 @@ title = "t = 0",
 camera=(0,90))
 
 #add plot statement for 512x512
-tt=20
-p3 = plot(hmat[1:256,1:256,tt], st = :surface, 
+tt=50
+p3 = plot(hmat[256:768,256:768,tt], st = :surface, 
 xlabel = "x", ylabel = "y", 
 zlabel = "Population size, H_t", 
 title = tt,
