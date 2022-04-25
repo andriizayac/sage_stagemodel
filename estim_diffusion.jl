@@ -3,13 +3,20 @@
 # === load packages
 using Plots, FFTW, LinearAlgebra, SparseArrays, FFTW
 
-
-# 1. Simulate data 
-
 # === helper function
 include("helper_fns.jl") 
+# ===
 
-# === IDE code
+# Contents:
+# 1. Plain diffusion case 
+# 2. Stage structured reaction-diffusion case
+
+# ==============================================================================================
+# ===  1. Plain diffusion case
+# ==============================================================================================
+
+# === 1.a Simulate data
+
 n = 32;  x = 10; dx = 2*x/n; 
 # define the spatial arrays in x and y
 xf = [range(-x,  x-dx , length = n);] 
@@ -19,39 +26,28 @@ yf = [range(-x, x-dx , length = n);]
 ngen = 30
 	
 # diffusion coefficient
-D = 1
+D = 3
 	
 # combine spatial arrays into grid
 XF = xf' .* ones(n)
 YF = ones(n)' .* yf
 	
-# xy = getxy.(XF, YF)
-
-# store simulations
-hmat = zeros(n, n, ngen + 1)
-
 # set up initial conditions	
-
-h0 = (abs.(XF) .<= 2) .* (abs.(YF) .<= 2) .* 100
+h0 = (abs.(XF) .<= 1) .* (abs.(YF) .<= 1) .* 100
 plot(h0, st = :surface, camera=(20,50))
 
-# === choose a dispersal kernel: K2DL (Laplace), K2DG (Gaussian)
-K2D(x, y) =  K2DG(x, y)
+# dispersal kernel
+xy = getxy.(xf' .* ones(n), ones(n)' .* yf)
+K2Ds(xy, D) = 1/(2pi*D) * exp(-norm( xy , 1)^2/(2D))
+Fsker = fft(K2Ds.(xy, D))
 
-# === simulate 
-sker = inflate(K2D, xf, yf)
-Fsker = fft(sker)
-
+# initiate
+hmat = zeros(n, n, ngen)
 hmat[:,:,1] = h0
 
 for j = 2:ngen
-	fhn = fft(hmat[:,:,j-1])
-	
-	hmat[:,:,j] = dx .* real( fftshift( ifft(Fsker .* fhn) ) )
+	global hmat[:,:,j] = dx .* real( fftshift( ifft(Fsker .* fft(hmat[:,:,j-1])) ) )
 end
-
-# idx, idy = Int.(n/2-n/4:n/2+n/4), Int.(n/2-n/4:n/2+n/4)
-#hcrop = hmat[idx, idy, :]
 
 anim = @animate for i in 1:30
     plot(hmat[:,:,i], st = :surface,
@@ -63,75 +59,126 @@ gif(anim, "anim0_out.gif", fps = 2)
 ydat = hmat
 
 
-# 2. Fit the simulated model to the data
+# === 1.b Fit the simulated model to the data
 using Distributions, Optim, LinearAlgebra, Plots, StatsPlots
-using AdvancedHMC, Zygote
-inf(f, xs, ys, D) = [f(x,y, D) for x in xs, y in ys]
+using Turing, AdvancedHMC, Zygote
 
-xy = getxy.(xf' .* ones(n), ones(n)' .* yf)
-K2Ds(x, y, D) =  1/(2pi*D) * exp(-norm( (x, y) , 1)^2/(2D))
-K2Dv1(xy, D) = 1/(2pi*D) * exp(-norm( xy , 1)^2/(2D))
+# --- reshape and add random noise to data
+ydatm = hmat + reshape(randn(length(hmat)), 32, 32, 30)
 
-
-# @btime a = real(fft(inf(K2Ds, xf, yf, D)))
-# @btime b = real(fft(K2Dv1.(xy, D)))
-
-ydatm = ydat + reshape(randn(length(ydat)), 32, 32, 31)
+y = [ydatm[:,:,j] for j in 1:size(ydatm)[3]]
 fydatm = [fft(ydatm[:,:,j]) for j in 1:size(ydatm)[3]]
-# @btime real(fftshift( ifft(fft(ydatm[:,:,1])) ));
-# === constrict a likelihood function
-function loglike(rho)
-        ngen = size(ydatm)[3]
-        # decode the parameters
-        D = rho[1]
-        sigma2 = rho[2]
-        # initialize storage output
-        logl = 0
-        # Dispersal kernel and FFT
-        Fsker = fft(K2Dv1.(xy, D))
-        # run time series loop
-        
-        mu = [dx .* real(fftshift(ifft(Fsker .* fydatm[j]))) for j in 1:ngen]
-        # likelihood
-        dist = [Normal.(mu[j], sqrt(2)) for j in 1:ngen]
-        logl += sum([sum(logpdf.(dist[j], y[j])) for j in 1:ngen])
-        return -logl
+
+
+anim = @animate for i in 1:30
+    plot(y[i], st = :surface,
+      xlabel = "x", ylabel = "y",  zlabel = "Population size, H_t")
+end every 1
+gif(anim, "anim0_out.gif", fps = 2)
+
+# --- define the likelihood function for the turing model
+function loglikeT(input, par)
+    # decode data
+    y, fydatm, xy, dx = input
+    ngen = length(y);
+    # decode the parameters
+    D, sigma2 = par;
+    # Dispersal kernel and FFT
+    Fsker = fft(K2Ds.(xy, D));
+    # run time series loop
+    mu = [dx .* real(fftshift(ifft(Fsker .* fydatm[j-1]))) for j in 2:ngen];
+    # likelihood
+    logl = sum([sum(loglikelihood.(Normal.(mu[j-1], sigma2), y[j])) for j in 2:ngen])
+    return logl
 end
 
+Turing.setadbackend(:zygote)
+Turing.@model function demo(data)
+    # priors 
+    b0 ~ Normal(0, 10)
+    b1 ~ Exponential(10)
+    # aggregate parameters
+    p = [b0, b1]
+    # minimize nagative log-likelihood (ie, maximize likelihood) 
+    Turing.@addlogprob! loglikeT(data, p)
+end
+
+input = [y, fydatm, xy, dx]
+nchains = 1
+n = 2000
+outcome1 = sample(demo(input), Gibbs(MH(:b0), MH()), n)
 
 
-P = 2; initial_params = rand(P)
+plot(outcome1[1000:end,:,:])
 
-n_samples, n_adapts = 100, 80
 
-target(x) =  loglike(x) + sum(logpdf.(Truncated(Normal(0,1), 0, Inf), x))
+# JLD.save("MH_diff_v0.jld", "outocme1", outcome1)
+# outcome = JLD.load("hmc_diff_v0.jld")
+# === 1. diffusion case
 
-metric = DiagEuclideanMetric(P)
-hamiltonian = Hamiltonian(metric, target, Zygote)
 
-initial_ϵ = find_good_stepsize(hamiltonian, initial_params)
-integrator = Leapfrog(initial_ϵ)
-proposal = NUTS{MultinomialTS, GeneralisedNoUTurn}(integrator)
-adaptor = StanHMCAdaptor(MassMatrixAdaptor(metric), StepSizeAdaptor(0.8, integrator))
+# ==============================================================================================
+# 2. === full simulation and stat model
+# ==============================================================================================
+using Turing, FFTW, LinearAlgebra
+using JLD
+ydat, p, xy, dx = JLD.load("hmat_128.jld", "hmat", "p", "xy", "dx") 
+ydat = ydat + reshape(randn(length(ydat)), size(ydat))/10
 
-samples1, stats1 = sample(hamiltonian, proposal, initial_params, 
-                        n_samples, adaptor, n_adapts; progress=true);
-samples2, stats2 = sample(hamiltonian, proposal, initial_params, 
-                        n_samples, adaptor, n_adapts; progress=true);
+n = size(ydat)[1]
+ngen = size(ydat)[3]
 
-a11 = map(x -> x[1], samples1)
-a12 = map(x -> x[1], samples2)
-a21 = map(x -> x[2], samples1)
-a22 = map(x -> x[2], samples2)
-                        
-bayesEst = map( x -> mean(x[1:end]), [a11, a21])
-bayesLower = map( x -> quantile(x[1:end], 0.25), [a11, a21])
-bayesUpper = map( x -> quantile(x[1:end], 0.75), [a11, a21])
+anim = @animate for i in 1:ngen
+    plot(ydat[:,:,i], st = :surface,
+      xlabel = "x", ylabel = "y",  zlabel = "Population size, H_t")
+end every 3
+gif(anim, "anim0_out.gif", fps = 3)
 
-density(a11, label="Chain 1")
-density(a21, label="Chain 2")
-plot!(-4:4, pdf.(Normal(0, 5), -4:4), label="Prior")
+y = [ydat[:,:,j] for j in 1:ngen]
+fydatm = [fft(y[j]) for j in 1:ngen]
 
-plot(a11, label="Chain 1")
-plot!(a21, label="Chain 2")
-# === end
+# === constrict a likelihood function
+function ide_model(input, p)
+        y, fydatm, xy, dx = input
+        ngen = length(y)
+        # decode the parameters
+        R, M, alpha, D, sigma2 = p
+        # Dispersal kernel and FFT
+        Fsker = fft(K2Ds.(xy, D))
+        # run time series loop
+        mu = [y[j-1] .+ growth(y[j-1], R,  M) .+ 
+            alpha .*(1 .- y[j-1]/M) .* 
+            real.( fftshift( ifft(Fsker .* fft(y[j-1]) ))) for j in 2:ngen]
+
+        # likelihood - 
+        logl = sum([sum(loglikelihood.(Normal.(mu[j-1], sigma2), y[j])) for j in 2:ngen])
+        return mu
+end
+input = [y, fydatm, xy, dx]
+
+
+mu = [y[j-1] .+ growth(y[j-1], R,  M) .+ 
+            alpha .*(1 .- y[j-1]/M) .* 
+            real.( fftshift( ifft(Fsker .* fft(y[j-1]) ))) for j in 2:ngen]
+            
+rho = rand(5)
+a = ide_model(input, [p; .1])
+
+Turing.setadbackend(:zygote)
+@model function ide_fit(data)
+    R ~ Normal(0, 10)
+    M ~ Gamma(3,20)
+    alpha ~ Exponential(1)
+    D ~ Normal(0,10)
+    sigma2 ~ Exponential(10)
+
+    p = [R, M, alpha, D, sigma2]
+    Turing.@addlogprob! ide_model(data, p)
+end
+
+nchains = 8
+n = 2000
+chains = sample(ide_fit(input), MH(), MCMCThreads(), n, nchains)
+
+
+plot(chains[1:end,:,:])
