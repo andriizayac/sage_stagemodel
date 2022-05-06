@@ -20,6 +20,15 @@ K2DG(x, y) = 1/(2pi*D^2) * exp(-norm( (x, y) , 1)^2/(2D^2))
 # Powell kernel (tutorial)
 K2DP(x, y) = 1/(4pi*D) * exp(-(x^2 + y^2) / (4D))
 
+# 2-D kernels with tuple input
+# Laplace kernel
+# K2DL(x) = 1/(2*D) * exp(-sqrt(2/D)*norm(x, 1))
+K2DLs(xy, D) = 1/(2*D) * exp(-sqrt(2/D)*norm( xy , 1))
+# Gaussian kernel
+K2DGs(xy, D) = 1/(2pi*D^2) * exp(-norm( xy, 1)^2/(2D^2))
+# Powell kernel (tutorial)
+K2Ds(xy, D) = 1/(4pi*D) * exp(-norm(xy, 1)^2/(2D))
+
 
 # === Growth functions
 # Beverton-Holt - Contest
