@@ -3,8 +3,8 @@ title : Stage-structured populations using IDE
 author : Payton Lyons, Andrii Zaiats, Maisha Maliha, Rongsong Liu, Trevor Caughlin
 date: Fall 2021
 options:
-      md2pdf:
-        out_path : pdf
+      md2html:
+        out_path : html
 ---
 ```julia; echo=false
 using Plots, FFTW
@@ -44,7 +44,7 @@ sessile and reproduce by creating new recruits in the vicinity of parent plants,
 do not reproduce, and their discritbution and esteblishement depend on the location and abundance of mature 
 plants. Mathematically, this structure could be described by the following piece-wise function:
 
-```math
+$$
 \begin{align}
 H_{t+1} = 
 		\begin{cases}
@@ -52,7 +52,7 @@ H_{t+1} =
 			S_t & \quad \text{if} \,  0 \geq t < \tau 
 		\end{cases}
 \end{align}
-```
+$$
 where $H_{t+1}$ is the population at the next time step, $H_t$ and $S_t$ describe the 
 mature and juvenile individuals in the population respectively. This is modeled as a 
 piecewise function to accurately meet the 
